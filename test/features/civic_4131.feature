@@ -1,4 +1,9 @@
- @api @javascript
+Feature: Test CIVIC 4131  Bug
+  In order to close a bug
+  As a developer
+  I need to make sure it no longer exist. 
+
+@api @javascript
   Scenario Outline: As a user with any Workflow role, I should be able to upgrade my own draft content to needs review.
     Given I am logged in as "<user>"
     And datasets:
