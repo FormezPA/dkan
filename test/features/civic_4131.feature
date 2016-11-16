@@ -6,6 +6,9 @@ Feature: Test CIVIC 4131  Bug
 @api @javascript
   Scenario Outline: As a user with any Workflow role, I should be able to upgrade my own draft content to needs review.
     Given I am logged in as "<user>"
+    Given users:
+      | name     | mail                  | status |
+      | <user>   | <user>@testuser.com   | 1      |
     And datasets:
       | title              | author | moderation | moderation_date | date created  |
       | My Draft Dataset   | <user> | draft      | Jul 21, 2015    | Jul 21, 2015  |
