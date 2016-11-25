@@ -15,6 +15,22 @@ define('FILE_STATUS_TEMPORARY', 0);
 class HarvestMigration extends MigrateDKAN {
 
   /**
+   *
+   * @var integerPolicyforthedownloadofthefile
+   *    0 - do not download at all
+   *    1 - only headers
+   *    2 - headers and body file (to be implemented)
+   *
+   * @todo The method 2 is to be implemented.
+   *    The class DkanHarvestGetHttpHeaders must be out of this file.
+   */
+  private $files_policy;
+
+  const FILES_POLICY_DO_NOT_DOWNLOAD = 0;
+  const FILES_POLICY_ONLY_HEADERS = 1;
+  const FILES_POLICY_FULL_FILE = 2;
+
+  /**
    * {@inheritdoc}
    */
   static public function getInstance($machine_name, $class_name = NULL, array $arguments = array()) {
@@ -74,6 +90,8 @@ class HarvestMigration extends MigrateDKAN {
     }
 
     parent::__construct($arguments);
+
+    $this->files_policy = variable_get('dkan_harvest_get_remote_files', self::FILES_POLICY_DO_NOT_DOWNLOAD);
 
     $this->dkanHarvestSource = $arguments['dkan_harvest_source'];
 
@@ -432,7 +450,8 @@ class HarvestMigration extends MigrateDKAN {
         if (isset($metadata_source_old_emw)) {
           entity_delete('node', $metadata_source_old_emw->nid);
         }
-      } catch (EntityMetadataWrapperException $emwException) {
+      }
+      catch (EntityMetadataWrapperException $emwException) {
         // Cannot get to the old datasets although the migration states it
         // exists. This should never happen but lets log this to help the next
         // developer debug this problem.
@@ -442,7 +461,7 @@ class HarvestMigration extends MigrateDKAN {
             '@exception_message' => $emwException->getMessage(),
           ));
         $this->saveMessage($message);
-        }
+      }
     }
 
     if (!isset($row->metadata_source) || !$row->metadata_source) {
@@ -506,7 +525,8 @@ class HarvestMigration extends MigrateDKAN {
 
     try {
       $metadata_source_emw->save();
-    } catch (EntityMetadataWrapperException $emwException) {
+    }
+    catch (EntityMetadataWrapperException $emwException) {
       // Saving the metadata source failed. skip.
       $message = t(
         '@message_prefix. @exception_message',
@@ -716,9 +736,10 @@ class HarvestMigration extends MigrateDKAN {
         $dataset_emw = NULL;
         try {
           $dataset_emw = entity_metadata_wrapper('node', $nid);
-        } catch (EntityMetadataWrapperException $exception) {
+        }
+        catch (EntityMetadataWrapperException $exception) {
           $this->saveMessage($exception->getMessage());
-          // Skip this nid
+          // Skip this nid.
           continue;
         }
 
@@ -947,6 +968,9 @@ class HarvestMigration extends MigrateDKAN {
    *         Or FALSE.
    */
   public static function prepareResourceHelper($url, $format = NULL, $title = NULL, $created = NULL, $description = NULL) {
+
+    $files_policy = variable_get('dkan_harvest_get_remote_files', self::FILES_POLICY_DO_NOT_DOWNLOAD);
+
     $resource = new stdClass();
 
     // Validate the url.
@@ -1014,21 +1038,24 @@ class HarvestMigration extends MigrateDKAN {
     }
 
     // If the file.
-    if ($resource->url_type == 'file') {
-      // Check if this file extension is allowed for field_link_remote_file.
-      // Reduce everything to lowercase to support files with uppercase
-      // extensions.
-      $link_field = field_info_instance('node', 'field_link_remote_file', 'resource');
-      $file_extensions = array_map('strtolower', explode(' ', $link_field['settings']['file_extensions']));
-      // Reject if the extension is not allowed.
-      if (!in_array($extension, $file_extensions)) {
-        $message = t('Resource remote url (@url) extension (@extension) not allowed',
-          array(
-            '@url' => $url,
-            '@extension' => $extension,
-          ));
-        self::displayMessage($message, 'error');
-        return FALSE;
+    // if(!self::SKIP_FILES){.
+    if (!$files_policy) {
+      if ($resource->url_type == 'file') {
+        // Check if this file extension is allowed for field_link_remote_file.
+        // Reduce everything to lowercase to support files with uppercase
+        // extensions.
+        $link_field = field_info_instance('node', 'field_link_remote_file', 'resource');
+        $file_extensions = array_map('strtolower', explode(' ', $link_field['settings']['file_extensions']));
+        // Reject if the extension is not allowed.
+        if (!in_array($extension, $file_extensions)) {
+          $message = t('Resource remote url (@url) extension (@extension) not allowed',
+            array(
+              '@url' => $url,
+              '@extension' => $extension,
+            ));
+          self::displayMessage($message, 'error');
+          return FALSE;
+        }
       }
     }
 
@@ -1097,18 +1124,24 @@ class HarvestMigration extends MigrateDKAN {
       }
     }
 
-    if ($res->url_type == 'file') {
-      // Manage file type resources.
-      $file = remote_stream_wrapper_file_load_by_uri($res->url);
-      if (!$file) {
-        $file = remote_stream_wrapper_file_create_by_uri($res->url);
-        $file->status = FILE_STATUS_TEMPORARY;
+    if ($res->url_type == 'file' && $this->files_policy > 0) {
+
+      // Get the info.
+      $filedata = $this->createFileFromHeaders($res->url);
+
+      // Data exists? Data file.
+      if (is_array($filedata)) {
+
+        $res = file_save((object) $filedata);
+        $resource_emw->field_link_remote_file->set(array(
+          'fid' => $res->fid,
+          'display' => 1,
+        ));
       }
-      file_save($file);
-      $resource_emw->field_link_remote_file->set(array(
-        'fid' => $file->fid,
-        'display' => 1,
-      ));
+      // Manage API type resources.
+      else {
+        $resource_emw->field_link_api->url->set($res->url);
+      }
     }
     else {
       // Manage API type resources.
@@ -1117,6 +1150,69 @@ class HarvestMigration extends MigrateDKAN {
 
     $resource_emw->save();
     return $resource_emw->raw();
+  }
+
+  /**
+   * Get the headers from the URL of the file.
+   * This method permits to do not download the file in order to have the info.
+   *
+   * @param string $fileurl
+   *   The URL of the remote file.
+   *
+   * @return array
+   */
+  private function createFileFromHeaders($fileurl) {
+
+    if (function_exists('drush_log')) {
+      drush_log("Get info from URL: " . $fileurl, 'notice');
+    }
+
+    $result = array();
+
+    $file_headers = DkanHarvestGetHttpHeaders::get_headers($fileurl);
+
+    if (is_array($file_headers)) {
+
+      foreach ($file_headers as $key => $value) {
+        if (is_array($value)) {
+          $value = end($value);
+        }
+        $result[$key] = $value;
+      }
+
+      // Remove optional query strings.
+      $filename = parse_url($fileurl);
+
+      $filedata = array(
+        'fid' => NULL,
+        'display' => 1,
+        'status' => FILE_STATUS_TEMPORARY,
+        'filename' => pathinfo($filename['path'], PATHINFO_BASENAME),
+        'uri' => $fileurl,
+      );
+
+      if (isset($result['Content-Type'])) {
+        $filedata['filemime'] = $result['Content-Type'];
+      }
+
+      if (isset($result['Content-Length'])) {
+        $filedata['filesize'] = $result['Content-Length'];
+      }
+      else {
+        $filedata['filesize'] = substr($result['Content-Range'],
+          strpos($result['Content-Range'], "/") + 1);
+      }
+
+      if (isset($result['Last-Modified'])) {
+        $filedata['timestamp'] = strtotime($result['Last-Modified']);
+      }
+
+      return $filedata;
+    }
+    else {
+      return -1;
+    }
+
   }
 
   /**
@@ -1198,6 +1294,7 @@ class HarvestMigration extends MigrateDKAN {
   public function getLogId() {
     return $this->logID;
   }
+
 }
 
 /**
