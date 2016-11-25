@@ -1038,8 +1038,7 @@ class HarvestMigration extends MigrateDKAN {
     }
 
     // If the file.
-    // if(!self::SKIP_FILES){.
-    if (!$files_policy) {
+    if ($files_policy != self::FILES_POLICY_DO_NOT_DOWNLOAD) {
       if ($resource->url_type == 'file') {
         // Check if this file extension is allowed for field_link_remote_file.
         // Reduce everything to lowercase to support files with uppercase
@@ -1124,7 +1123,8 @@ class HarvestMigration extends MigrateDKAN {
       }
     }
 
-    if ($res->url_type == 'file' && $this->files_policy > 0) {
+    if ($res->url_type == 'file' 
+      && $this->files_policy != self::FILES_POLICY_DO_NOT_DOWNLOAD) {
 
       // Get the info.
       $filedata = $this->createFileFromHeaders($res->url);
