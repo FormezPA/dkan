@@ -1038,24 +1038,26 @@ class HarvestMigration extends MigrateDKAN {
           return FALSE;
         }
 
-    // If the file.
-    if ($files_policy != self::FILES_POLICY_DO_NOT_DOWNLOAD) {
-      if ($resource->url_type == 'file') {
-        // Check if this file extension is allowed for field_link_remote_file.
-        // Reduce everything to lowercase to support files with uppercase
-        // extensions.
-        $link_field = field_info_instance('node', 'field_link_remote_file', 'resource');
-        $file_extensions = array_map('strtolower', explode(' ', $link_field['settings']['file_extensions']));
-        // Reject if the extension is not allowed.
-        if (!in_array($extension, $file_extensions)) {
-          $message = t('Resource remote url (@url) extension (@extension) not allowed',
-            array(
-              '@url' => $url,
-              '@extension' => $extension,
-            ));
-          self::displayMessage($message, 'error');
-          return FALSE;
-        }
+		// If the file.
+		if ($files_policy != self::FILES_POLICY_DO_NOT_DOWNLOAD) {
+		  if ($resource->url_type == 'file') {
+			// Check if this file extension is allowed for field_link_remote_file.
+			// Reduce everything to lowercase to support files with uppercase
+			// extensions.
+			$link_field = field_info_instance('node', 'field_link_remote_file', 'resource');
+			$file_extensions = array_map('strtolower', explode(' ', $link_field['settings']['file_extensions']));
+			// Reject if the extension is not allowed.
+			if (!in_array($extension, $file_extensions)) {
+			  $message = t('Resource remote url (@url) extension (@extension) not allowed',
+				array(
+				  '@url' => $url,
+				  '@extension' => $extension,
+				));
+			  self::displayMessage($message, 'error');
+			  return FALSE;
+			}
+		  }
+		}
       }
     }
 
@@ -1425,3 +1427,4 @@ class XMLHarvestMigration extends HarvestMigration {
   }
 
 }
+
