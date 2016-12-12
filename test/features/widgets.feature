@@ -19,6 +19,7 @@ Feature: Widgets
       | title          | publisher | format | author | published | dataset                        | description |
       | District Names | Group 01  | csv 2  | admin  | Yes       | 11111AAAAAAafghanistan Election Districts |             |
     And I am logged in as a user with the "site manager" role
+    And I am on the homepage
     And I wait for "Customize this page"
     When I click "Customize this page"
     And I wait for "Add new pane"
@@ -37,7 +38,7 @@ Feature: Widgets
   Scenario: Adds "New File Widget" block to home page using panels ipe editor
     When I follow "File"
       And I wait for "Configure new File"
-      And I attach the drupal file "actionplan.pdf" to "files[field_basic_file_file_und_0]"
+      And I attach the drupal file "dkan/actionplan.pdf" to "files[field_basic_file_file_und_0]"
       And I press "Finish"
       And I wait and press "Save"
       Then I should see "actionplan.pdf"
@@ -46,8 +47,13 @@ Feature: Widgets
     When I follow "Add image"
       And I wait for "Configure new Image"
       And I fill in "field_basic_image_caption[und][0][value]" with "dkan logo image test"
-      And I attach the drupal file "dkan_logo.png" to "files[field_basic_image_image_und_0]"
-      And I press "Finish"
+      And I click "Browse"
+      And I wait for "2" seconds
+      And I switch to the frame "mediaBrowser"
+      And I attach the drupal file "dkan/dkan_logo.png" to "files[upload]"
+      And I press "Next"
+      And I wait and press "Save"
+      And I wait and press "Finish"
       And I wait and press "Save"
       Then I should see "dkan logo image test"
 
@@ -106,7 +112,7 @@ Feature: Widgets
     And I wait for "Configure new Slideshow"
       And I fill in "field_basic_spotlight_items[und][0][title]" with "First spot"
       And I fill in "field_basic_spotlight_items[und][0][link]" with "http://demo.getdkan.com"
-      And I attach the drupal file "dkan_logo.png" to "files[field_basic_spotlight_items_und_0_fid]"
+      And I attach the drupal file "dkan/dkan_logo.png" to "files[field_basic_spotlight_items_und_0_fid]"
       And I press "Finish"
     And I wait and press "Save"
       And I wait for "First spot"
@@ -147,4 +153,3 @@ Feature: Widgets
     And I press "Finish"
     And I wait for "Visualization embed"
     Then I should see "Visualization embed"
-
